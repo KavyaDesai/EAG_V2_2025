@@ -1,0 +1,10 @@
+{
+  "symbols": ["AAPL", "MSFT"],
+  "send_time": "08:30",
+  "email": {
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": 587,
+    "sender": "kavyadesai172@gmail.com",
+    "recipient": "kavyadesai172@gmail.com"
+  }
+}

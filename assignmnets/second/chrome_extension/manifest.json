@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Daily Market Analyser (local backend)",
+  "version": "1.0.0",
+  "description": "Configure tickers and email recipient. View latest Gemini analysis and market analytics (gold/silver, gainers/losers). Works with local backend.",
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "permissions": ["storage"],
+  "host_permissions": ["http://localhost/*"]
+}

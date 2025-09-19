@@ -1,0 +1,10 @@
+SKIPPED EMAIL - missing SMTP settings
+
+Market data (raw):
+AAPL: open=239.97, close=237.88, change_today=-0.87%, volume=44219200, vs_prev_close=-0.46%
+MSFT: open=511.49, close=508.45, change_today=-0.59%, volume=18901300, vs_prev_close=-0.31%
+
+Analysis (LLM):
+AAPL - Apple closed lower today, down 0.87%, with slightly higher volume than yesterday's close. The stock faced downward pressure, suggesting potential weakness. *Sell* Apple; the negative price action with increased volume indicates a possible continuation of the downtrend.
+
+MSFT - Microsoft ended the day in the red, declining by 0.59% on relatively moderate volume. While the dip was not as significant as Apple's, it still signals a slight lack of bullish momentum. *Hold* Microsoft; await further signals of a stronger reversal before making any decisions.

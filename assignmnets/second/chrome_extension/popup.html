@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Market Analyser</title>
+    <style>
+      body{font-family: Arial; padding:12px; width:480px;}
+      .tabs { display:flex; gap:8px; margin-bottom:8px; }
+      .tab { padding:6px 8px; border:1px solid #ddd; border-radius:6px; cursor:pointer; }
+      .tab.active { background:#efefef; font-weight:600; }
+      .section { display:none; }
+      .section.active { display:block; }
+      label{display:block; margin-top:8px; font-size:13px;}
+      input, textarea, select {width:100%; padding:6px; box-sizing:border-box; margin-top:4px;}
+      button{margin-top:10px; padding:8px 10px;}
+      #status { margin-top:8px; color:green; white-space:pre-wrap; max-height:140px; overflow:auto; }
+      table { width:100%; border-collapse: collapse; margin-top:8px; font-size:13px;}
+      th, td { border:1px solid #ddd; padding:6px; text-align:left; }
+      th { background:#f7f7f7; }
+      .gain { color:green; font-weight:600; }
+      .loss { color:red; font-weight:600; }
+    </style>
+  </head>
+  <body>
+    <h3 style="margin:0 0 8px 0">Market Analyser</h3>
+
+    <div class="tabs">
+      <div id="tab-config" class="tab active">Config</div>
+      <div id="tab-analytics" class="tab">Analytics</div>
+    </div>
+
+    <div id="section-config" class="section active">
+      <label>Tickers (comma separated)</label>
+      <input id="tickers" placeholder="AAPL,MSFT,GC=F,SI=F"/>
+      <label>Send time (HH:MM)</label>
+      <input id="send_time" placeholder="08:30"/>
+      <label>Sender email</label>
+      <input id="sender" placeholder="you@gmail.com"/>
+      <label>Recipient</label>
+      <input id="recipient" placeholder="you@gmail.com"/>
+      <button id="save">Save to local backend</button>
+      <button id="sendnow">Send now</button>
+      <div id="status">Status will appear here.</div>
+    </div>
+
+    <div id="section-analytics" class="section">
+      <label>Tickers to analyze (comma separated)</label>
+      <input id="ana_tickers" placeholder="GC=F,SI=F,AAPL,MSFT"/>
+      <label>Period</label>
+      <select id="period">
+        <option value="daily">Daily</option>
+        <option value="3mo">3 Months</option>
+        <option value="6mo">6 Months</option>
+      </select>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button id="run_analytics">Run Analytics</button>
+        <button id="gainers">Top Gainers/Losers</button>
+        <button id="refresh_status">Refresh LLM Status</button>
+      </div>
+
+      <div id="analytics_status" style="margin-top:8px; color:#333; white-space:pre-wrap;"></div>
+
+      <div id="table_wrap" style="margin-top:8px;">
+        <table id="results_table" style="display:none;">
+          <thead>
+            <tr><th>Symbol (unit)</th><th>Start</th><th>End</th><th>% Change</th></tr>
+          </thead>
+          <tbody id="results_body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
