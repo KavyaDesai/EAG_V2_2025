@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "Market Helper",
+  "version": "1.0.2",
+  "description": "Chrome popup for /config, /run, /status, /movers (+Metals).",
+  "action": { "default_title": "Market Helper", "default_popup": "popup.html" },
+  "host_permissions": ["http://127.0.0.1:8000/*"]
+}

@@ -1,0 +1,12 @@
+{
+  "symbols": [
+    "gc=f"
+  ],
+  "send_time": "20:19",
+  "email": {
+    "smtp_server": null,
+    "smtp_port": null,
+    "sender": "kavyadesai172@gmail.com",
+    "recipient": "kavyadesai@gmail.com"
+  }
+}
