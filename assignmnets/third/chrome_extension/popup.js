@@ -1,6 +1,6 @@
 const BASE = "http://127.0.0.1:8000";
 
-// -------- Tabs --------
+/* -------- Tabs -------- */
 const tabBtns = document.querySelectorAll(".tabs button");
 const tabs = document.querySelectorAll(".tab");
 tabBtns.forEach(btn => btn.addEventListener("click", () => {
@@ -10,54 +10,61 @@ tabBtns.forEach(btn => btn.addEventListener("click", () => {
   document.getElementById(btn.dataset.tab).classList.add("active");
 }));
 
-// -------- Helpers --------
-function fmt(n, digits=2) { return (n === null || n === undefined || isNaN(n)) ? "" : Number(n).toFixed(digits); }
+/* -------- Helpers -------- */
+function fmt(n, digits=2){ return (n===null||n===undefined||isNaN(n)) ? "" : Number(n).toFixed(digits); }
+function fmtPct(v){
+  if (v===null||v===undefined||isNaN(v)) return "";
+  const sign = Number(v)>=0 ? "+" : "";
+  return `${sign}${Number(v).toFixed(2)}%`;
+}
+function pctBadge(v){
+  if (v===null||v===undefined||isNaN(v)) return "";
+  const cls = Number(v)>=0 ? "badge pos" : "badge neg";
+  return `<span class="${cls}">${fmtPct(v)}</span>`;
+}
 
-function renderTable(rows) {
-  if (!Array.isArray(rows) || rows.length === 0) return `<div class="muted">No rows.</div>`;
-  const cols = ["symbol","start_usd","end_usd","pct_change","end_inr","error"];
-  const head = `<tr>${cols.map(c=>`<th>${c}</th>`).join("")}</tr>`;
-  const body = rows.map(r => {
-    return `<tr>
-      <td>${(r.resolved_from ? `${r.resolved_from} → ` : "") + (r.symbol ?? "")}</td>
-      <td>${fmt(r.start_usd,2)}</td>
-      <td>${fmt(r.end_usd,2)}</td>
-      <td>${fmt(r.pct_change,2)}</td>
-      <td>${fmt(r.end_inr,2)}</td>
-      <td>${r.error ? `<span class="err">${r.error}</span>` : ""}</td>
-    </tr>`;
+function renderTable(rows){
+  if (!Array.isArray(rows) || rows.length===0) return `<div class="muted">No rows.</div>`;
+  const head = `<tr>
+    <th>symbol</th><th>start_usd</th><th>end_usd</th><th>pct_change</th><th>end_inr</th><th>error</th>
+  </tr>`;
+  const body = rows.map(r=>{
+    const sym = (r.resolved_from ? `${r.resolved_from} → ` : "") + (r.symbol ?? "");
+    const start = (r.start_usd!=null && !isNaN(r.start_usd)) ? Number(r.start_usd).toFixed(2) : "";
+    const end   = (r.end_usd!=null   && !isNaN(r.end_usd))   ? Number(r.end_usd).toFixed(2)   : "";
+    const pct   = pctBadge(r.pct_change);
+    const inr   = (r.end_inr!=null   && !isNaN(r.end_inr))   ? Number(r.end_inr).toFixed(2)   : "";
+    const err   = r.error ? `<span class="err">${r.error}</span>` : "";
+    return `<tr><td>${sym}</td><td>${start}</td><td>${end}</td><td>${pct}</td><td>${inr}</td><td>${err}</td></tr>`;
   }).join("");
   return `<table>${head}${body}</table>`;
 }
 
-function setStatus(el, text, ok=false, isError=false) {
+function setStatus(el, text, ok=false, isError=false){
   el.classList.remove("ok","err","muted");
   if (isError) el.classList.add("err");
   else el.classList.add(ok ? "ok" : "muted");
   el.textContent = text;
 }
+function disable(el, on=true){ el.disabled=!!on; el.classList.toggle("muted", !!on); }
 
-function disable(el, on=true){ el.disabled = !!on; el.classList.toggle("muted", !!on); }
-
-// -------- Prefill from GET /config on load --------
+/* -------- Prefill from GET /config on load -------- */
 (async function initFromConfig(){
-  try {
+  try{
     const r = await fetch(`${BASE}/config`);
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
     const cfg = await r.json();
-
     document.getElementById("cfg_symbols").value = (cfg.symbols || []).join(", ");
     document.getElementById("cfg_sendtime").value = cfg.send_time || "08:30";
     document.getElementById("cfg_sender").value = (cfg.email && cfg.email.sender) || "";
     document.getElementById("cfg_recipient").value = (cfg.email && cfg.email.recipient) || "";
-  } catch (e) {
-    const box = document.getElementById("status_box");
-    setStatus(box, "Could not load config: " + e.message, false, true);
+  }catch(e){
+    setStatus(document.getElementById("status_box"), "Could not load config: " + e.message, false, true);
   }
 })();
 
-// -------- Config tab --------
-document.getElementById("btn_save_cfg").addEventListener("click", async (ev) => {
+/* -------- Config tab -------- */
+document.getElementById("btn_save_cfg").addEventListener("click", async (ev)=>{
   const btn = ev.currentTarget, box = document.getElementById("status_box");
   disable(btn, true);
   const cfg = {
@@ -68,40 +75,36 @@ document.getElementById("btn_save_cfg").addEventListener("click", async (ev) => 
       recipient: document.getElementById("cfg_recipient").value || ""
     }
   };
-  try {
-    const r = await fetch(`${BASE}/config`, {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify(cfg)
-    });
+  try{
+    const r = await fetch(`${BASE}/config`, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(cfg) });
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
     await r.json().catch(()=>{});
     setStatus(box, "Saved configuration.", true);
-  } catch (e) {
+  }catch(e){
     setStatus(box, "Save failed: " + e.message, false, true);
-  } finally {
+  }finally{
     disable(btn, false);
   }
 });
 
-document.getElementById("btn_send_now").addEventListener("click", async (ev) => {
+document.getElementById("btn_send_now").addEventListener("click", async (ev)=>{
   const btn = ev.currentTarget, box = document.getElementById("status_box");
   disable(btn, true);
-  try {
+  try{
     const r = await fetch(`${BASE}/run`, { method:"POST" });
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
     setStatus(box, "Triggered run. Refresh status in a few seconds…");
-  } catch (e) {
+  }catch(e){
     setStatus(box, "Run failed: " + e.message, false, true);
-  } finally {
+  }finally{
     disable(btn, false);
   }
 });
 
-document.getElementById("btn_refresh_status").addEventListener("click", async (ev) => {
+document.getElementById("btn_refresh_status").addEventListener("click", async (ev)=>{
   const btn = ev.currentTarget, box = document.getElementById("status_box");
   disable(btn, true);
-  try {
+  try{
     const r = await fetch(`${BASE}/status`);
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
     const j = await r.json();
@@ -109,39 +112,38 @@ document.getElementById("btn_refresh_status").addEventListener("click", async (e
               : j.last_run_preview ? JSON.stringify(j.last_run_preview, null, 2)
               : "No analysis yet.";
     box.textContent = txt;
-    box.classList.remove("muted","err"); // neutral display for server text
-  } catch (e) {
+    box.classList.remove("muted","err");
+  }catch(e){
     setStatus(box, "Status error: " + e.message, false, true);
-  } finally {
+  }finally{
     disable(btn, false);
   }
 });
 
-// -------- Movers tab --------
-document.getElementById("btn_run_movers").addEventListener("click", async () => {
+/* -------- Movers tab -------- */
+document.getElementById("btn_run_movers").addEventListener("click", async ()=>{
   const market = document.getElementById("mov_market").value;
-  const period = document.getElementById("mov_period").value; // daily | 3mo | 6mo
+  const period = document.getElementById("mov_period").value;
   const top = document.getElementById("mov_top").value || 10;
   const out = document.getElementById("mov_out");
   out.textContent = "Loading…";
-  try {
+  try{
     const r = await fetch(`${BASE}/movers?market=${encodeURIComponent(market)}&period=${encodeURIComponent(period)}&top=${encodeURIComponent(top)}`);
     if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
     const j = await r.json();
 
-    const metals = renderTable(j.metals || []);
-    const g = renderTable(j.gainers || []);
-    const l = renderTable(j.losers || []);
     const commodities = renderTable(j.commodities || []);
-    out.innerHTML = `<h4>Commodities (Gold, Silver, Crude, Copper)</h4>${commodities}
-                    <h4>Top Gainers</h4>${g}
-                    <h4>Top Losers</h4>${l}`;
+    const gainers = renderTable(j.gainers || []);
+    const losers  = renderTable(j.losers || []);
 
+    out.innerHTML = `<h4>Commodities (Gold, Silver, Crude, Copper)</h4>${commodities}
+                     <h4>Top Gainers</h4>${gainers}
+                     <h4>Top Losers</h4>${losers}`;
     out.classList.remove("muted","err");
-  } catch (e) {
+  }catch(e){
     out.innerHTML = `<span class="err">Error: ${e.message}</span>`;
   }
 });
 
-// Initial status fetch on open
+/* Initial status fetch on open */
 document.getElementById("btn_refresh_status").click();

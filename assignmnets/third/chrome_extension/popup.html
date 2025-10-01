@@ -5,32 +5,80 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Market Helper</title>
   <style>
-    :root { --bg:#fff; --fg:#1b1b1b; --muted:#667085; --ok:#127c36; --err:#c62828; --border:#e5e7eb; }
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color: var(--fg); background: var(--bg); }
-    .wrap { padding: 12px; width: 380px; }
-    .tabs { display: flex; gap: 8px; }
-    .tabs button { padding: 6px 10px; border: 1px solid var(--border); background:#f8fafc; border-radius: 8px; cursor: pointer; }
-    .tabs button.active { background:#e8eef9; border-color:#c7d2fe; }
-    .tab { display: none; margin-top: 12px; }
-    .tab.active { display: block; }
-    h2 { font-size: 14px; margin: 12px 0 8px; }
-    label { display:block; font-size:12px; color:var(--muted); margin:12px 0 6px; }
-    input, select { width:100%; padding:8px; border:1px solid var(--border); border-radius:8px; }
-    .row { display:flex; gap:8px; }
-    .row > * { flex:1; }
-    .btns { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
-    button.btn { padding:8px 12px; border:1px solid var(--border); border-radius:8px; background:#fff; cursor:pointer; }
-    button.btn.primary { background:#0ea5e9; color:#fff; border-color:#0ea5e9; }
-    .status, .panel { border:1px dashed var(--border); border-radius:8px; padding:10px; margin-top:10px; white-space:pre-wrap; }
-    .muted { color:var(--muted); }
-    .ok { color:var(--ok); }
-    .err { color:var(--err); }
-    table { width:100%; border-collapse: collapse; margin-top:8px; font-size: 12px; }
-    th, td { border:1px solid var(--border); padding:6px; text-align:left; }
-    th { background:#f3f4f6; }
-    h4 { margin: 14px 0 6px; font-size: 13px; }
-    small { color: var(--muted); }
+    /* ====== THEME ====== */
+    :root{
+      --bg: #0b1020;
+      --panel: #111a33;
+      --card: #0f1830;
+      --fg: #e9eefc;
+      --muted: #8fa2c9;
+      --border: #21315d;
+      --accent: #7c9cff;
+      --accent-2: #12c2e9;
+      --ok: #35cc7a;
+      --err: #ff6b6b;
+      --shadow: 0 10px 28px rgba(8,14,30,.35);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;color:var(--fg);
+      background: radial-gradient(1200px 180px at -15% -40%, rgba(124,156,255,.15), transparent 60%), linear-gradient(180deg,#0a0f22 0%,#0e1630 100%);
+    }
+
+    /* ====== LAYOUT ====== */
+    .wrap{padding:14px;width:420px;max-width:100vw}
+    .tabs{display:flex;gap:8px;background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.00));padding:6px;border-radius:12px;border:1px solid var(--border);box-shadow:var(--shadow)}
+    .tabs button{
+      flex:1; padding:10px 12px; border-radius:10px; border:1px solid var(--border);
+      background:var(--card); color:var(--fg); cursor:pointer; transition:.2s ease;
+    }
+    .tabs button.active{background:linear-gradient(135deg,var(--accent) 0%, var(--accent-2) 100%); color:#0b1020; border-color:transparent; font-weight:700}
+
+    .tab{display:none;margin-top:12px}
+    .tab.active{display:block}
+
+    h2{font-size:14px;margin:12px 0 10px;color:#dfe6ff}
+    label{display:block;font-size:12px;color:var(--muted);margin:10px 0 6px}
+
+    input, select{
+      width:100%; padding:10px;border:1px solid var(--border);border-radius:10px;background:#0f1830;color:var(--fg);
+      outline:none; transition:border .2s ease, box-shadow .2s ease;
+    }
+    input:focus, select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,156,255,.2)}
+
+    .row{display:flex;gap:10px}
+    .row > *{flex:1}
+
+    .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    button.btn{
+      padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#0f1830;color:var(--fg);cursor:pointer;transition:transform .08s ease, background .2s ease, border .2s ease;
+    }
+    button.btn:hover{background:#132040}
+    button.btn:active{transform:translateY(1px)}
+    button.btn.primary{background:linear-gradient(135deg,var(--accent) 0%, var(--accent-2) 100%);border-color:transparent;color:#0b1020;font-weight:700}
+    button.btn.muted{opacity:.6}
+
+    .status, .panel{
+      border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:12px;white-space:pre-wrap;background:var(--panel);box-shadow:var(--shadow)
+    }
+    .muted{color:var(--muted)}
+    .ok{color:var(--ok)}
+    .err{color:#ffd7d7;background:linear-gradient(180deg,rgba(255,107,107,.10),rgba(255,107,107,.02));border-color:#d04f4f}
+
+    table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px;background:#0f1830;border-radius:10px;overflow:hidden}
+    th, td{border-bottom:1px solid var(--border);padding:8px;text-align:left}
+    th{background:#0e1a34;color:#b8c7ee;font-weight:600}
+    tr:last-child td{border-bottom:none}
+
+    h4{margin: 14px 0 6px; font-size: 13px;color:#dfe6ff}
+    small{color: var(--muted)}
+
+    /* badges */
+    .badge{padding:2px 8px;border-radius:999px;font-weight:700;font-size:11px;border:1px solid transparent}
+    .badge.pos{color:#0f5132;background:#e7f6ee;border-color:#b6e2c7}
+    .badge.neg{color:#842029;background:#fde7e7;border-color:#f5bcbc}
+
+    /* subtle section cards inside tabs (optional wrappers) */
+    .card{border:1px solid var(--border);border-radius:12px;background:var(--panel);padding:12px;box-shadow:var(--shadow);margin-top:12px}
   </style>
 </head>
 <body>
@@ -42,51 +90,55 @@
 
     <!-- Config -->
     <section id="tab-config" class="tab active">
-      <h2>Configuration</h2>
-      <label>Symbols (comma-separated)</label>
-      <input id="cfg_symbols" placeholder="GC=F,SI=F,AAPL,MSFT" />
+      <div class="card">
+        <h2>Configuration</h2>
+        <label>Symbols (comma-separated)</label>
+        <input id="cfg_symbols" placeholder="GC=F,SI=F,AAPL,MSFT" />
 
-      <div class="row">
-        <div>
-          <label>Send time (HH:MM)</label>
-          <input id="cfg_sendtime" placeholder="08:30" />
+        <div class="row">
+          <div>
+            <label>Send time (HH:MM)</label>
+            <input id="cfg_sendtime" placeholder="08:30" />
+          </div>
         </div>
-      </div>
 
-      <h2>Email <small>(optional)</small></h2>
-      <div class="row">
-        <input id="cfg_sender" placeholder="sender@example.com" />
-        <input id="cfg_recipient" placeholder="recipient@example.com" />
-      </div>
+        <h2>Email <small>(optional)</small></h2>
+        <div class="row">
+          <input id="cfg_sender" placeholder="sender@example.com" />
+          <input id="cfg_recipient" placeholder="recipient@example.com" />
+        </div>
 
-      <div class="btns">
-        <button id="btn_save_cfg" class="btn primary">Save Config</button>
-        <button id="btn_send_now" class="btn">Send Now</button>
-        <button id="btn_refresh_status" class="btn">Refresh Status</button>
-      </div>
+        <div class="btns">
+          <button id="btn_save_cfg" class="btn primary">Save Config</button>
+          <button id="btn_send_now" class="btn">Send Now</button>
+          <button id="btn_refresh_status" class="btn">Refresh Status</button>
+        </div>
 
-      <div id="status_box" class="status muted">No analysis yet.</div>
+        <div id="status_box" class="status muted">No analysis yet.</div>
+      </div>
     </section>
 
     <!-- Movers -->
     <section id="tab-movers" class="tab">
-      <h2>Market Movers</h2>
-      <div class="row">
-        <select id="mov_market" title="market">
-          <option value="us" selected>US</option>
-          <option value="in">India</option>
-        </select>
-        <select id="mov_period" title="period">
-          <option value="daily" selected>daily</option>
-          <option value="3mo">3mo</option>
-          <option value="6mo">6mo</option>
-        </select>
-        <input id="mov_top" type="number" min="1" max="50" value="10" title="top"/>
+      <div class="card">
+        <h2>Market Movers</h2>
+        <div class="row">
+          <select id="mov_market" title="market">
+            <option value="us" selected>US</option>
+            <option value="in">India</option>
+          </select>
+          <select id="mov_period" title="period">
+            <option value="daily" selected>daily</option>
+            <option value="3mo">3mo</option>
+            <option value="6mo">6mo</option>
+          </select>
+          <input id="mov_top" type="number" min="1" max="50" value="10" title="top"/>
+        </div>
+        <div class="btns">
+          <button id="btn_run_movers" class="btn primary">Run Movers</button>
+        </div>
+        <div id="mov_out" class="panel muted">No results.</div>
       </div>
-      <div class="btns">
-        <button id="btn_run_movers" class="btn primary">Run Movers</button>
-      </div>
-      <div id="mov_out" class="panel muted">No results.</div>
     </section>
   </div>
 
