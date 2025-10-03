@@ -1,324 +1,258 @@
 import os
-from dotenv import load_dotenv
-from mcp import ClientSession, StdioServerParameters, types
-from mcp.client.stdio import stdio_client
+import re
 import asyncio
+from dotenv import load_dotenv
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 from google import genai
 from concurrent.futures import TimeoutError
-from functools import partial
 
-# Load environment variables from .env file
-load_dotenv()
+# ==============================
+# Helpers
+# ==============================
 
-# Access your API key and initialize Gemini client correctly
-api_key = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=api_key)
+def extract_final_number(final_line: str) -> str:
+    """Parse a numeric value from FINAL_ANSWER: [42] or FINAL_ANSWER: [3.14]."""
+    m = re.search(r"FINAL_ANSWER:\s*\[\s*([+-]?\d+(?:\.\d+)?)\s*\]\s*$", final_line)
+    if m:
+        return m.group(1)
+    m2 = re.search(r"([+-]?\d+(?:\.\d+)?)", final_line)
+    if m2:
+        return m2.group(1)
+    raise ValueError(f"Could not parse numeric FINAL_ANSWER from: {final_line}")
 
-max_iterations = 3
-last_response = None
-iteration = 0
-iteration_response = []
 
-async def generate_with_timeout(client, prompt, timeout=10):
-    """Generate content with a timeout"""
-    print("Starting LLM generation...")
-    try:
-        # Convert the synchronous generate_content call to run in a thread
-        loop = asyncio.get_event_loop()
-        response = await asyncio.wait_for(
-            loop.run_in_executor(
-                None, 
-                lambda: client.models.generate_content(
-                    model="gemini-2.0-flash",
-                    contents=prompt
-                )
-            ),
-            timeout=timeout
-        )
-        print("LLM generation completed")
-        return response
-    except TimeoutError:
-        print("LLM generation timed out!")
-        raise
-    except Exception as e:
-        print(f"Error in LLM generation: {e}")
-        raise
+async def generate_with_timeout(client, prompt, timeout=15):
+    """Run Gemini generation with timeout, in executor thread."""
+    loop = asyncio.get_event_loop()
+    return await asyncio.wait_for(
+        loop.run_in_executor(
+            None,
+            lambda: client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=prompt
+            )
+        ),
+        timeout=timeout
+    )
 
-def reset_state():
-    """Reset all global variables to their initial state"""
-    global last_response, iteration, iteration_response
-    last_response = None
-    iteration = 0
-    iteration_response = []
 
-async def main():
-    reset_state()  # Reset at the start of main
-    print("Starting main execution...")
-    try:
-        # Create a single MCP server connection
-        print("Establishing connection to MCP server...")
-        server_params = StdioServerParameters(
-            command="python",
-            args=["mcp_server.py"]
-        )
+def coerce_arg(value: str, schema_type: str):
+    """Convert string value to correct type based on schema type."""
+    if schema_type == "integer":
+        return int(value)
+    if schema_type == "number":
+        return float(value)
+    if schema_type == "boolean":
+        v = str(value).strip().lower()
+        return v in ("1", "true", "yes", "y", "on")
+    if schema_type == "array":
+        # handle comma-separated values or [a,b,c]
+        if isinstance(value, str):
+            v = value.strip("[]")
+            items = [s.strip() for s in v.split(",")] if v else []
+        else:
+            items = list(value)
 
-        async with stdio_client(server_params) as (read, write):
-            print("Connection established, creating session...")
-            async with ClientSession(read, write) as session:
-                print("Session created, initializing...")
-                await session.initialize()
-                
-                # Get available tools
-                print("Requesting tool list...")
-                tools_result = await session.list_tools()
-                tools = tools_result.tools
+        # Try to auto-convert items to int/float if possible
+        converted = []
+        for it in items:
+            try:
+                if "." in it:
+                    converted.append(float(it))
+                else:
+                    converted.append(int(it))
+            except Exception:
+                converted.append(it)  # fallback keep string
+        return converted
+    return str(value)
 
-                print(f"Successfully retrieved {len(tools)} tools")
 
-                # Create system prompt with available tools
-                print("Creating system prompt...")
-                print(f"Number of tools: {len(tools)}")
-                
-                try:
-                    # First, let's inspect what a tool object looks like
-                    # if tools:
-                    #     print(f"First tool properties: {dir(tools[0])}")
-                    #     print(f"First tool example: {tools[0]}")
-                    
-                    tools_description = []
-                    for i, tool in enumerate(tools):
-                        try:
-                            # Get tool properties
-                            params = tool.inputSchema
-                            desc = getattr(tool, 'description', 'No description available')
-                            name = getattr(tool, 'name', f'tool_{i}')
-                            
-                            # Format the input schema in a more readable way
-                            if 'properties' in params:
-                                param_details = []
-                                for param_name, param_info in params['properties'].items():
-                                    param_type = param_info.get('type', 'unknown')
-                                    param_details.append(f"{param_name}: {param_type}")
-                                params_str = ', '.join(param_details)
-                            else:
-                                params_str = 'no parameters'
 
-                            tool_desc = f"{i+1}. {name}({params_str}) - {desc}"
-                            tools_description.append(tool_desc)
-                            print(f"Added description for tool: {tool_desc}")
-                        except Exception as e:
-                            print(f"Error processing tool {i}: {e}")
-                            tools_description.append(f"{i+1}. Error processing tool")
-                    
-                    tools_description = "\n".join(tools_description)
-                    print("Successfully created tools description")
-                except Exception as e:
-                    print(f"Error creating tools description: {e}")
-                    tools_description = "Error loading tools"
-                
-                print("Created system prompt...")
-                
-                system_prompt = f"""You are a math agent solving problems in iterations. 
-You also have access to drawing tools in Microsoft Paint.
+def build_tools_description(tools):
+    """Make readable description for all tools."""
+    lines = []
+    for i, tool in enumerate(tools):
+        try:
+            name = getattr(tool, "name", f"tool_{i}")
+            desc = getattr(tool, "description", "No description")
+            schema = getattr(tool, "inputSchema", {}) or {}
+            props = schema.get("properties", {})
+            parts = []
+            for p_name, p_info in props.items():
+                p_type = p_info.get("type", "string")
+                required = p_name in (schema.get("required", []) or [])
+                parts.append(f"{p_name}:{p_type}{'*' if required else ''}")
+            sig = ", ".join(parts) if parts else "no parameters"
+            lines.append(f"{name}({sig}) - {desc}")
+        except Exception:
+            lines.append(f"tool_{i}(unknown) - (schema error)")
+    return "\n".join(lines)
+
+
+def parse_model_line(text: str):
+    line = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
+    # strip leading '-' if present
+    if line.startswith("- "):
+        line = line[2:].strip()
+    if line.startswith("FUNCTION_CALL:"):
+        fn_spec = line.split(":", 1)[1].strip()
+        parts = [p.strip() for p in fn_spec.split("|")]
+        return ("CALL", parts[0], parts[1:])
+    if line.startswith("FINAL_ANSWER:"):
+        payload = line.split(":", 1)[1].strip()
+        return ("FINAL", payload, [])
+    return ("INVALID", line, [])
+
+
+
+# ==============================
+# Prompts
+# ==============================
+
+SYSTEM_MATH = """You are a math agent solving problems in iterations.
 
 Available tools:
-{tools_description}
+{TOOLS}
 
-You must respond with EXACTLY ONE line in one of these formats (no additional text):
-1. For function calls:
-   FUNCTION_CALL: function_name|param1|param2|...
-2. For final answers:
-   FINAL_ANSWER: [done]
+Respond with EXACTLY ONE line:
+- FUNCTION_CALL: function_name|param1|param2|...
+- FINAL_ANSWER: [number]
 
-Important:
-- When a function returns multiple values, you need to process all of them
-- Only give FINAL_ANSWER: [done] once you have completed all necessary calculations AND 
-  drawn the result in Paint by calling:
-    1) open_paint
-    2) draw_rectangle with some coordinates
-    3) add_text_in_paint with the numeric result text
-- Do not repeat function calls with the same parameters
+Rules:
+- Only give FINAL_ANSWER when math is complete.
+- Do not repeat function calls with the same parameters.
+- Use the TOOL_RESULT history below instead of calling the same tool again.
+"""
 
-Examples:
-- FUNCTION_CALL: add|5|3
-- FUNCTION_CALL: strings_to_chars_to_int|INDIA
-- FINAL_ANSWER: [42]
-- FUNCTION_CALL: open_paint
-- FUNCTION_CALL: draw_rectangle|50|50|1600|500
-- FUNCTION_CALL: add_text_in_paint|42|120|160
+SYSTEM_PAINT = """You are a tool-using agent. You MUST draw the previously computed number in Microsoft Paint.
+
+Available tools:
+{TOOLS}
+
+Respond with EXACTLY ONE line:
+- FUNCTION_CALL: function_name|param1|param2|...
 - FINAL_ANSWER: [done]
 
-DO NOT include any explanations or additional text.
-Your entire response should be a single line starting with either FUNCTION_CALL: or FINAL_ANSWER:"""
+Rules:
+- Call, in order:
+  1) open_paint
+  2) draw_rectangle|50|50|1600|500
+  3) add_text_in_paint|{NUM}|120|160
+- Do not repeat function calls with the same parameters.
+- Only output FINAL_ANSWER: [done] after all three calls succeed.
+"""
 
-                query = """Find the ASCII values of characters in kAVYA and then return sum of exponentials of those values. 
-Once you have computed the number, open Paint, draw a rectangle from (50,50) to (1600,500), and write the number inside at (120,160)."""
 
-                print("Starting iteration loop...")
-                
-                # Use global iteration variables
-                global iteration, last_response
-                
-                while iteration < max_iterations:
-                    print(f"\n--- Iteration {iteration + 1} ---")
-                    if last_response is None:
-                        current_query = query
-                    else:
-                        current_query = current_query + "\n\n" + " ".join(iteration_response)
-                        current_query = current_query + "  What should I do next?"
+# ==============================
+# Main
+# ==============================
 
-                    # Get model's response with timeout
-                    print("Preparing to generate LLM response...")
-                    prompt = f"{system_prompt}\n\nQuery: {current_query}"
-                    
-                    try:
-                        response = await generate_with_timeout(client, prompt)
-                        response_text = response.text.strip()
-                        print(f"LLM Response: {response_text}")
-                        
-                        # Find the FUNCTION_CALL line in the response
-                        for line in response_text.split('\n'):
-                            line = line.strip()
-                            if line.startswith("FUNCTION_CALL:"):
-                                response_text = line
-                                break
-                        
-                    except Exception as e:
-                        print(f"Failed to get LLM response: {e}")
+async def main():
+    load_dotenv()
+    api_key = os.getenv("GEMINI_API_KEY")
+    client = genai.Client(api_key=api_key)
+
+    server_params = StdioServerParameters(command="python", args=["mcp_server.py"])
+
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            tools_result = await session.list_tools()
+            tools = tools_result.tools
+            tools_by_name = {t.name: t for t in tools}
+            tools_description = build_tools_description(tools)
+
+            # Phase state
+            phase = "math"
+            pending_number = None
+            iteration = 0
+            max_iterations = 15
+            transcript = []
+
+            query_math = """First convert 'kAVYA' into ASCII values, then calculate the sum of their exponentials. 
+Do not call the same tool twice; use TOOL_RESULT history."""
+
+            while iteration < max_iterations:
+                print(f"\n--- Iteration {iteration+1} (phase={phase}) ---")
+
+                if phase == "math":
+                    system_prompt = SYSTEM_MATH.format(TOOLS=tools_description)
+                    query = query_math
+                else:
+                    system_prompt = SYSTEM_PAINT.format(TOOLS=tools_description, NUM=pending_number)
+                    query = f"Draw the number {pending_number} in Paint as specified."
+
+                # Include transcript
+                history = "\n".join(transcript) if transcript else "(no previous steps)"
+                full_prompt = f"{system_prompt}\n\nTOOL_RESULT history:\n{history}\n\nQuery: {query}\n\nYour response:"
+
+                try:
+                    resp = await generate_with_timeout(client, full_prompt, timeout=20)
+                    model_text = resp.text.strip()
+                except Exception as e:
+                    print(f"Model error: {e}")
+                    break
+
+                kind, head, args = parse_model_line(model_text)
+                print(f"MODEL => {model_text}")
+
+                if kind == "CALL":
+                    fn_name = head
+                    tool = tools_by_name.get(fn_name)
+                    if not tool:
+                        print(f"Unknown tool: {fn_name}")
                         break
 
+                    schema = tool.inputSchema or {}
+                    props = schema.get("properties", {}) or {}
+                    arguments = {}
 
-                    if response_text.startswith("FUNCTION_CALL:"):
-                        _, function_info = response_text.split(":", 1)
-                        parts = [p.strip() for p in function_info.split("|")]
-                        func_name, params = parts[0], parts[1:]
-                        
-                        print(f"\nDEBUG: Raw function info: {function_info}")
-                        print(f"DEBUG: Split parts: {parts}")
-                        print(f"DEBUG: Function name: {func_name}")
-                        print(f"DEBUG: Raw parameters: {params}")
-                        
-                        try:
-                            # Find the matching tool to get its input schema
-                            tool = next((t for t in tools if t.name == func_name), None)
-                            if not tool:
-                                print(f"DEBUG: Available tools: {[t.name for t in tools]}")
-                                raise ValueError(f"Unknown tool: {func_name}")
+                    if props:
+                        arg_list = list(args)
+                        for p_name, p_info in props.items():
+                            if not arg_list:
+                                raise ValueError(f"Missing param {p_name} for {fn_name}")
+                            raw = arg_list.pop(0)
+                            arguments[p_name] = coerce_arg(raw, p_info.get("type", "string"))
 
-                            print(f"DEBUG: Found tool: {tool.name}")
-                            print(f"DEBUG: Tool schema: {tool.inputSchema}")
+                    print(f"Calling {fn_name} with {arguments}")
+                    result = await session.call_tool(fn_name, arguments=arguments)
 
-                            # Prepare arguments according to the tool's input schema
-                            arguments = {}
-                            schema_properties = tool.inputSchema.get('properties', {})
-                            print(f"DEBUG: Schema properties: {schema_properties}")
+                    if hasattr(result, "content") and isinstance(result.content, list):
+                        texts = [getattr(item, "text", str(item)) for item in result.content]
+                        tool_out = " | ".join(texts)
+                    else:
+                        tool_out = str(result)
 
-                            for param_name, param_info in schema_properties.items():
-                                if not params:  # Check if we have enough parameters
-                                    raise ValueError(f"Not enough parameters provided for {func_name}")
-                                    
-                                value = params.pop(0)  # Get and remove the first parameter
-                                param_type = param_info.get('type', 'string')
-                                
-                                print(f"DEBUG: Converting parameter {param_name} with value {value} to type {param_type}")
-                                
-                                # Convert the value to the correct type based on the schema
-                                if param_type == 'integer':
-                                    arguments[param_name] = int(value)
-                                elif param_type == 'number':
-                                    arguments[param_name] = float(value)
-                                elif param_type == 'array':
-                                    # Handle array input
-                                    if isinstance(value, str):
-                                        value = value.strip('[]').split(',')
-                                    arguments[param_name] = [int(x.strip()) for x in value]
-                                else:
-                                    arguments[param_name] = str(value)
-
-                            print(f"DEBUG: Final arguments: {arguments}")
-                            print(f"DEBUG: Calling tool {func_name}")
-                            
-                            result = await session.call_tool(func_name, arguments=arguments)
-                            
-                            print(f"DEBUG: Raw result: {result}")
-                            
-                            # Get the full result content
-                            if hasattr(result, 'content'):
-                                print(f"DEBUG: Result has content attribute")
-                                # Handle multiple content items
-                                if isinstance(result.content, list):
-                                    iteration_result = [
-                                        item.text if hasattr(item, 'text') else str(item)
-                                        for item in result.content
-                                    ]
-                                else:
-                                    iteration_result = str(result.content)
-                            else:
-                                print(f"DEBUG: Result has no content attribute")
-                                iteration_result = str(result)
-                                
-                            print(f"DEBUG: Final iteration result: {iteration_result}")
-                            
-                            # Format the response based on result type
-                            if isinstance(iteration_result, list):
-                                result_str = f"[{', '.join(iteration_result)}]"
-                            else:
-                                result_str = str(iteration_result)
-                            
-                            iteration_response.append(
-                                f"In the {iteration + 1} iteration you called {func_name} with {arguments} parameters, "
-                                f"and the function returned {result_str}."
-                            )
-                            last_response = iteration_result
-
-                        except Exception as e:
-                            print(f"DEBUG: Error details: {str(e)}")
-                            print(f"DEBUG: Error type: {type(e)}")
-                            import traceback
-                            traceback.print_exc()
-                            iteration_response.append(f"Error in iteration {iteration + 1}: {str(e)}")
-                            break
-
-                    # elif response_text.startswith("FINAL_ANSWER:"):
-                    #     print("\n=== Agent Execution Complete ===")
-                    #     result = await session.call_tool("open_paint")
-                    #     print(result.content[0].text)
-
-                    #     # Wait longer for Paint to be fully maximized
-                    #     await asyncio.sleep(1)
-
-                    #     # Draw a rectangle
-                    #     result = await session.call_tool(
-                    #         "draw_rectangle",
-                    #         arguments={
-                    #             "x1": 50,
-                    #             "y1": 50,
-                    #             "x2": 1600,
-                    #             "y2": 500
-                    #         }
-                    #     )
-                    #     print(result.content[0].text)
-
-                    #     # Draw rectangle and add text
-                    #     result = await session.call_tool(
-                    #         "add_text_in_paint",
-                    #         arguments={
-                    #             "text": response_text.split(":", 1)[1].strip(),
-                    #         }
-                    #     )
-                    #     print(result.content[0].text)
-                    #     break
+                    print(f"{fn_name} => {tool_out}")
+                    transcript.append(f"TOOL_RESULT: {fn_name} => {tool_out}")
 
                     iteration += 1
+                    continue
 
-    except Exception as e:
-        print(f"Error in main execution: {e}")
-        import traceback
-        traceback.print_exc()
-    finally:
-        reset_state()  # Reset at the end of main
+                if kind == "FINAL":
+                    if phase == "math":
+                        try:
+                            pending_number = extract_final_number(model_text)
+                            print(f"Parsed FINAL_ANSWER number: {pending_number}")
+                        except ValueError as e:
+                            print(f"Parse error: {e}")
+                            break
+                        # switch to paint phase
+                        phase = "paint"
+                        iteration += 1
+                        continue
+                    else:
+                        print("\n=== COMPLETE ===")
+                        print(model_text)
+                        break
+
+                if kind == "INVALID":
+                    print(f"Invalid model response: {head}")
+                    iteration += 1
+                    continue
+
 
 if __name__ == "__main__":
     asyncio.run(main())
-    
-    
