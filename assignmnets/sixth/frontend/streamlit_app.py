@@ -117,8 +117,8 @@ with st.sidebar:
 # ----------------------------
 # Main UI
 # ----------------------------
-st.title("📚 Agent-Fable Kids Story Maker")
-st.caption("Planner • Author • Critic — Cognitive Layers (Preferences first)")
+st.title("📚 Agent-Fable A Kids Story Maker")
+st.caption("• Multi-Agentic story generator with Planner • Author • Critic ")
 
 
 c1, c2 = st.columns(2)
@@ -318,4 +318,4 @@ if gen_btn:
                 st.write(f"- {f}")
 
 st.markdown("---")
-st.caption("Agent-Fable A Kids Story Maker • Multi-Agentic story generation with Planner • Author • Critic ")
+st.caption("Agent-Fable A Kids Story Maker • Multi-Agentic story generator with Planner • Author • Critic ")
