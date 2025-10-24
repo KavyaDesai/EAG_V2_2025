@@ -1,4 +1,4 @@
-# 📚 Kids Story Maker — Multi-Agent Cognitive System (Planner • Author • Critic)
+# 📚 Agent Fable - A Kids Story Maker with Multi-Agent Cognitive System (Planner • Author • Critic)
 
 Kid-safe story generator for ages **6–10** using a **4-layer cognitive architecture**:
 - **Perception** → normalize user preferences

@@ -10,7 +10,7 @@ import streamlit as st
 # Config
 # ----------------------------
 st.set_page_config(
-    page_title="Kids Story Maker (Planner • Author • Critic)",
+    page_title="Agent-Fable Kids Story Maker",
     page_icon="📚",
     layout="centered",
 )
