@@ -120,20 +120,38 @@ with st.sidebar:
 st.title("📚 Kids Story Maker")
 st.caption("Planner • Author • Critic — Cognitive Layers (Preferences first)")
 
-# ---- 1) User ID & Profile-like Preferences (merged into StoryPreferences) ----
-st.subheader("1) Save Preferences (required, once per user)")
+
 c1, c2 = st.columns(2)
 with c1:
     user_id = st.text_input("User ID", value=st.session_state.get("user_id", "kavya"))
 with c2:
     location = st.text_input("Location (optional)", value=st.session_state.get("location", "Bengaluru"))
 
-likes_csv = st.text_input("Likes (comma-separated)", value=st.session_state.get("likes_csv", "robots, gardens"))
-taste = st.selectbox("Taste (style)", options=["", "adventurous", "curious", "calm", "funny"], index=1)
-fav_topics_csv = st.text_input("Favorite topics (comma-separated)", value=st.session_state.get("fav_topics_csv", "sharing, teamwork"))
+# Track which users have saved preferences in this session
+if "prefs_saved_users" not in st.session_state:
+    st.session_state["prefs_saved_users"] = set()
 
-# ---- 2) Story Preferences (same object) ----
-st.subheader("2) Story Preferences")
+def save_prefs():
+    if not user_id.strip():
+        st.error("User ID is required.")
+        return
+    # Only send location as a preference from this section
+    preferences = {
+        "location": (location.strip() or None),
+    }
+    resp = post_bootstrap_preferences(user_id.strip(), preferences)
+    st.session_state["user_id"] = user_id.strip()
+    st.session_state["location"] = location
+    st.session_state["prefs_saved_users"].add(user_id.strip())
+    st.success("Preferences saved.")
+    return resp
+
+
+
+st.markdown("---")
+
+# ---- 2) Story Preferences ----
+st.subheader("Story Preferences")
 pc1, pc2 = st.columns(2)
 with pc1:
     target_words = st.slider("Target words", min_value=150, max_value=1200, value=500, step=50)
@@ -145,36 +163,6 @@ required_moral = st.text_input("Required moral (optional)", value="Kindness and 
 required_words_csv = st.text_input("Required words (comma-separated, optional)", value="robot, neighbor, garden")
 protagonist_name = st.text_input("Protagonist name (optional)", value="Robo")
 
-# Track which users have saved preferences in this session
-if "prefs_saved_users" not in st.session_state:
-    st.session_state["prefs_saved_users"] = set()
-
-def save_prefs():
-    if not user_id.strip():
-        st.error("User ID is required.")
-        return
-    preferences = {
-        # merged profile-like fields:
-        "likes": parse_csv(likes_csv),
-        "location": (location.strip() or None),
-        "taste": (taste or None),
-        "favorite_topics": parse_csv(fav_topics_csv),
-        # story knobs:
-        "target_words": target_words,
-        "reading_level": reading_level,
-        "avoid_themes": parse_csv(avoid_themes_csv),
-        "required_moral": (required_moral.strip() or None),
-        "required_words": parse_csv(required_words_csv),
-        "protagonist_name": (protagonist_name.strip() or None),
-    }
-    resp = post_bootstrap_preferences(user_id.strip(), preferences)
-    st.session_state["user_id"] = user_id.strip()
-    st.session_state["location"] = location
-    st.session_state["likes_csv"] = likes_csv
-    st.session_state["fav_topics_csv"] = fav_topics_csv
-    st.session_state["prefs_saved_users"].add(user_id.strip())
-    st.success("Preferences saved.")
-    return resp
 
 save_col, status_col = st.columns([1, 3])
 with save_col:
@@ -193,11 +181,10 @@ with save_col:
 with status_col:
     saved = user_id.strip() in st.session_state["prefs_saved_users"]
     st.caption("Status: " + ("✅ Saved for this user" if saved else "❌ Not saved — click 'Save Preferences'"))
-
 st.markdown("---")
 
 # ---- 3) Topic + Generate ----
-st.subheader("3) Generate Story")
+st.subheader("Generate Story")
 
 preset = st.selectbox(
     "Quick preset (optional)",
@@ -217,8 +204,10 @@ topic = st.text_area(
     placeholder="e.g., A curious robot learns to share",
 )
 
-prefs_saved_for_user = (user_id.strip() in st.session_state["prefs_saved_users"])
+# Whether preferences saved for this user in this session
+prefs_saved_for_user = (user_id.strip() in st.session_state["prefs_saved_users"]) 
 
+# Button to generate
 gen_btn = st.button(
     "✨ Generate Story",
     type="primary",
@@ -231,7 +220,23 @@ if gen_btn:
         st.warning("Please enter a topic (at least 3 characters).")
         st.stop()
 
+    # Compose preferences from UI
+    client_story_prefs = {
+        "target_words": target_words,
+        "reading_level": reading_level,
+        "avoid_themes": parse_csv(avoid_themes_csv),
+        "required_moral": (required_moral.strip() or None),
+        "required_words": parse_csv(required_words_csv),
+        "protagonist_name": (protagonist_name.strip() or None),
+        # also include location if you want it considered:
+        "location": (location.strip() or None),
+    }
+
     try:
+        with st.spinner("Saving preferences…"):
+            # 🔁 ensure backend memory has the latest prefs
+            post_bootstrap_preferences(user_id.strip(), client_story_prefs)
+
         with st.spinner("Planning… Writing… Critiquing…"):
             resp = post_generate(user_id.strip(), topic.strip())
     except requests.HTTPError as he:
@@ -244,6 +249,9 @@ if gen_btn:
     except Exception as e:
         st.error(f"Request failed: {e}")
         st.stop()
+
+    # ... render response (unchanged) ...
+
 
     # Render response
     plan = resp.get("plan", {})

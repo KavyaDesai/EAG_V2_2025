@@ -50,24 +50,20 @@ from .schemas import Plan, AuthoredStory, Critique, StoryPreferences
 # """
 
 # ---------- SYSTEM PROMPTS ----------
-PLANNER_SYS = """
-You are the **Planner Agent** in a multi-agent story-writing team for children aged 6–10.
+PLANNER_SYS = """You are the **Planner Agent** in a kid-safe multi-agent writing team for ages 6–10.
 
 ## Role & Objective
-- Your goal is to **design a safe, age-appropriate story plan** for the given topic.
-- Reading level must be A1 or A2 depending on the user input.
-- Think **step-by-step** before producing the final JSON.
+Design a safe, age-appropriate, A1–A2 reading-level plan for the given topic and constraints.
 
-## Explicit Reasoning Instructions ✅
-1. First, silently reason step-by-step about:
-   - What setting best fits the topic?
-   - Which characters are friendly and engaging for ages 6–10?
-   - What moral lesson can be embedded naturally?
-2. Then, check if the plan is safe (no violence, horror, bullying, romance, or mature themes).
-3. Finally, output only the JSON structure shown below.
+## Constraints to Honor
+- Prohibited themes: violence, horror, bullying, romance, mature content.
+- If a **protagonist_name** is provided in constraints, include that name in the **characters** list and make it the main character.
+- If **required_words** are provided in constraints, **weave ALL of them naturally into the plan**:
+  - Prefer using them in **setting** and **outline** bullet points (not as a raw list).
+  - Do NOT keyword-stuff; integrate them contextually.
 
-## Structured Output Format ✅
-Always return **compact JSON only**, following this schema EXACTLY:
+## Output Format (JSON ONLY)
+Return compact JSON exactly in this schema:
 {
   "title": str,
   "setting": str,
@@ -78,26 +74,13 @@ Always return **compact JSON only**, following this schema EXACTLY:
   "moral": str
 }
 
-## Internal Self-Checks ✅
-Before finalizing:
-- Verify that the output matches the JSON schema exactly.
-- Confirm that the moral aligns with the story outline.
-- Ensure all sentences are age-appropriate and safe.
+## Internal Self-Checks (silent)
+- Verify the schema matches exactly.
+- If constraints.protagonist_name exists, ensure it is present in 'characters'.
+- If constraints.required_words exists, ensure each word appears in 'setting' or at least one 'outline' item, case-insensitive and naturally.
+- Keep content safe and warm for ages 6–10.
 
-## Reasoning Type Awareness ✅
-Mark your reasoning type internally as:
-"creative planning with constraint validation"
-
-## Error Handling or Fallbacks ✅
-If unsure about any field:
-- Make the best safe assumption based on topic and age.
-- Never leave a field blank or with placeholder text.
-
-## Conversation Loop Support ✅
-If feedback is provided later (e.g., user correction or critic review),
-be ready to adjust only the plan section without rewriting the entire schema.
-
-Return **only** the final JSON (no explanations).
+Return ONLY the JSON.
 """
 
 
@@ -176,26 +159,8 @@ Always return JSON ONLY in this schema:
     "word_count": int
   }
 }
-
-## Internal Self-Checks ✅
-- Verify that all feedback items are factual, specific, and constructive.
-- If you revise, ensure the new story still respects the plan and moral.
-- Never output both narrative text and critique outside JSON.
-
-## Reasoning Type Awareness ✅
-Mark your reasoning type internally as:
-"evaluation and safe content verification"
-
-## Error Handling or Fallbacks ✅
-If uncertain about content severity:
-- Mark it in "flagged_themes".
-- Prefer revision suggestions rather than rejection.
-
-## Conversation Loop Support ✅
-If the Author revises and resubmits, compare the new story against previous feedback for improvement consistency.
-
-Return **only** the JSON.
 """
+
 
 # ---------- AGENTS ----------
 class PlannerAgent:
@@ -210,14 +175,14 @@ class PlannerAgent:
             "reading_level": p.reading_level or "A2",
             "avoid_themes": p.avoid_themes or [],
             "required_moral": p.required_moral,
-            "required_words": p.required_words or [],
-            "protagonist_name": p.protagonist_name,
-            "likes": p.likes or [],
-            "favorite_topics": p.favorite_topics or [],
+            # NEW: pass constraints to planner so it can include them in plan
+            "constraints": {
+                "required_words": p.required_words or [],
+                "protagonist_name": p.protagonist_name,
+            }
         }
         raw = self.llm.generate_text(PLANNER_SYS, json.dumps(ask), json_expect=True)
         data = json.loads(raw)
-        # harden types
         return Plan(
             title=str(data["title"]).strip(),
             setting=str(data["setting"]).strip(),
@@ -227,6 +192,7 @@ class PlannerAgent:
             reading_level=str(data["reading_level"]),
             moral=str(data["moral"]).strip(),
         )
+
 
 class AuthorAgent:
     def __init__(self, llm: GeminiClient):
