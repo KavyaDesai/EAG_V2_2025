@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+requests
+pydantic>=2
+streamlit
+# Either one of these two libs may be present on your system; we support both:
+google-genai
+google-generativeai
