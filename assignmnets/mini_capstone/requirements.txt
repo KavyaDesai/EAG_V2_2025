@@ -1,0 +1,29 @@
+# Core LLM
+google-generativeai>=0.3.0
+
+# MCP
+mcp>=0.9.0
+
+# Web & Processing
+trafilatura>=1.6.0
+requests>=2.31.0
+duckduckgo-search>=4.1.0
+
+# Math & Code
+numpy>=1.24.0
+scipy>=1.11.0
+
+# Utilities
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+
+# Vector Store (for MCP server)
+faiss-cpu>=1.7.4
+
+# Document Processing (for MCP server)
+markitdown>=0.0.1a19
+pymupdf4llm>=0.0.6
+
+# Logging
+colorlog>=6.7.0
+
