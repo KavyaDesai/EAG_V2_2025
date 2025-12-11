@@ -1,0 +1,12 @@
+# Browser Automation
+playwright==1.40.0
+
+# Google Gemini API
+google-generativeai==0.3.2
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# Type hints and utilities
+typing-extensions==4.8.0
+
